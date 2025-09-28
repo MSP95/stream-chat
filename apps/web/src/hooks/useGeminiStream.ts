@@ -7,18 +7,26 @@ export interface ChatMessage {
   timestamp: Date;
 }
 
+interface GeminiContent {
+  parts: Array<{ text: string }>;
+  role: 'user' | 'model';
+}
+
 interface UseGeminiStreamReturn {
   messages: ChatMessage[];
   isLoading: boolean;
   error: string | null;
   sendPrompt: (prompt: string) => Promise<void>;
   clearMessages: () => void;
+  maxHistoryLength: number;
+  setMaxHistoryLength: (length: number) => void;
 }
 
 export const useGeminiStream = (workerUrl: string): UseGeminiStreamReturn => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [maxHistoryLength, setMaxHistoryLength] = useState<number>(20); // Keep last 20 messages
 
   const sendPrompt = useCallback(async (prompt: string) => {
     if (!prompt.trim()) {
@@ -50,17 +58,25 @@ export const useGeminiStream = (workerUrl: string): UseGeminiStreamReturn => {
     setMessages(prev => [...prev, aiMessage]);
 
     try {
+      // Build conversation history from current messages + new user message
+      const allMessages = [...messages, userMessage];
+      const recentMessages = allMessages.slice(-maxHistoryLength);
+      
+      // Build conversation history for Gemini API
+      const conversationHistory: GeminiContent[] = recentMessages.map(msg => ({
+        parts: [{ text: msg.content }],
+        role: msg.isUser ? 'user' : 'model'
+      }));
+
+      console.log('Sending conversation history:', conversationHistory); // Debug log
+
       const fetchResponse = await fetch(workerUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          contents: [{
-            parts: [{
-              text: prompt
-            }]
-          }],
+          contents: conversationHistory,
         }),
       });
 
@@ -119,7 +135,7 @@ export const useGeminiStream = (workerUrl: string): UseGeminiStreamReturn => {
     } finally {
       setIsLoading(false);
     }
-  }, [workerUrl]);
+  }, [workerUrl, messages, maxHistoryLength]);
 
   const clearMessages = useCallback(() => {
     setMessages([]);
@@ -132,5 +148,7 @@ export const useGeminiStream = (workerUrl: string): UseGeminiStreamReturn => {
     error,
     sendPrompt,
     clearMessages,
+    maxHistoryLength,
+    setMaxHistoryLength,
   };
 };
