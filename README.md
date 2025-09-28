@@ -40,22 +40,28 @@ Create a `.env` file in the worker directory:
 GEMINI_API_KEY=your_google_ai_api_key_here
 ```
 
-### 4. Deploy the Cloudflare Worker
+## Local Development
+
+### Option A: Local Development (Recommended for testing)
+
+1. **Start the Cloudflare Worker locally:**
 
 ```bash
 cd apps/worker
-npx wrangler deploy
+npx wrangler dev
 ```
 
-### 5. Update the worker URL
+This will start the worker locally and provide a URL like `http://localhost:8787`
 
-In `apps/web/src/App.tsx`, update the `WORKER_URL` constant with your deployed worker URL:
+2. **Update the worker URL in the web app:**
+
+In `apps/web/src/App.tsx`, update the `WORKER_URL` constant:
 
 ```typescript
-const WORKER_URL = 'https://your-worker.your-subdomain.workers.dev/chat';
+const WORKER_URL = 'http://localhost:8787/chat';
 ```
 
-### 6. Run the web application
+3. **Start the web application:**
 
 ```bash
 cd apps/web
@@ -63,6 +69,31 @@ pnpm dev
 ```
 
 The application will be available at `http://localhost:5173`
+
+### Option B: Production Deployment
+
+1. **Deploy the Cloudflare Worker:**
+
+```bash
+cd apps/worker
+npx wrangler deploy
+```
+
+2. **Update the worker URL:**
+
+In `apps/web/src/App.tsx`, update the `WORKER_URL` constant with your deployed worker URL:
+
+```typescript
+const WORKER_URL = 'https://your-worker.your-subdomain.workers.dev/chat';
+```
+
+3. **Build and serve the web application:**
+
+```bash
+cd apps/web
+pnpm build
+pnpm preview
+```
 
 ## Usage
 
@@ -105,18 +136,34 @@ Request body:
 
 ## Development
 
-### Running locally
+### Quick Start (Local Development)
 
-For local development, you can use Wrangler's dev mode:
-
+1. **Terminal 1 - Start the worker:**
 ```bash
 cd apps/worker
 npx wrangler dev
 ```
 
-This will start the worker locally and provide a URL you can use in your web app.
+2. **Terminal 2 - Start the web app:**
+```bash
+cd apps/web
+pnpm dev
+```
 
-### Building
+3. **Update the worker URL in the web app** (if needed):
+   - Open `apps/web/src/App.tsx`
+   - Change `WORKER_URL` to `'http://localhost:8787/chat'`
+
+### Environment Variables
+
+For local development, create a `.env` file in the worker directory:
+
+```bash
+# apps/worker/.env
+GEMINI_API_KEY=your_google_ai_api_key_here
+```
+
+### Building for Production
 
 ```bash
 # Build web app
