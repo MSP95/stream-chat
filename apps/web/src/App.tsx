@@ -1,204 +1,192 @@
-import React, { useState, useRef } from 'react';
-import './App.css'; // Assuming you have an App.css for basic styles
+// src/App.tsx (or App.jsx)
+
+// src/components/GeminiStreamChat.tsx
+
+import React, { useState, useCallback } from 'react';
+
+const WORKER_URL = '/chat'; // <<< IMPORTANT: Replace with your Worker's URL
+
+const GeminiStreamChat: React.FC = () => {
+    const [prompt, setPrompt] = useState<string>('');
+    const [response, setResponse] = useState<string>('');
+    const [isLoading, setIsLoading] = useState<boolean>(false);
+    const [error, setError] = useState<string | null>(null);
+
+    const handleSendPrompt = useCallback(async () => {
+        if (!prompt.trim()) {
+            alert('Please enter a prompt!');
+            return;
+        }
+
+        setIsLoading(true);
+        setError(null);
+        setResponse(''); // Clear previous response
+
+        try {
+            const fetchResponse = await fetch(WORKER_URL, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    contents: [{
+                        parts: [{
+                            text: prompt
+                        }]
+                    }],
+                    // You can add generationConfig and safetySettings here if needed
+                    // generationConfig: { temperature: 0.9, topK: 1, topP: 1 },
+                    // safetySettings: [{ category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' }]
+                }),
+            });
+
+            if (!fetchResponse.ok || !fetchResponse.body) {
+                const errorText = await fetchResponse.text();
+                throw new Error(`Worker Error: ${fetchResponse.status} - ${errorText}`);
+            }
+
+            const reader = fetchResponse.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                buffer += decoder.decode(value, { stream: true });
+                
+                // Process complete lines from the buffer
+                const lines = buffer.split('\n');
+                buffer = lines.pop() || ''; // Keep incomplete line in buffer
+
+                for (const line of lines) {
+                    let data = '';
+                    
+                    if (line.startsWith('data: ')) {
+                        data = line.slice(6).trim();
+                    } else if (line.trim().startsWith('{')) {
+                        // Raw JSON without data: prefix
+                        data = line.trim();
+                    }
+                    
+                    if (data && data !== '[DONE]') {
+                        try {
+                            const parsed = JSON.parse(data);
+                            const text = parsed.candidates?.[0]?.content?.parts?.[0]?.text || '';
+                            if (text) {
+                                setResponse(prev => prev + text);
+                            }
+                        } catch (e) {
+                            // Skip malformed JSON
+                        }
+                    }
+                }
+            }
+            console.log('Stream finished.');
+
+        } catch (err: any) {
+            console.error('Streaming error:', err);
+            setError(err.message || 'An unknown error occurred during streaming.');
+        } finally {
+            setIsLoading(false);
+        }
+    }, [prompt]); // Re-create handler if prompt changes
+
+    return (
+        <div style={styles.container}>
+            <h1 style={styles.heading}>Gemini Streaming Chat</h1>
+            <textarea
+                style={styles.textarea}
+                value={prompt}
+                onChange={(e) => setPrompt(e.target.value)}
+                placeholder="Enter your prompt here..."
+                rows={6}
+                disabled={isLoading}
+            />
+            <button
+                style={styles.button}
+                onClick={handleSendPrompt}
+                disabled={isLoading}
+            >
+                {isLoading ? 'Generating...' : 'Send Prompt'}
+            </button>
+
+            {error && <p style={styles.errorText}>Error: {error}</p>}
+
+            <div style={styles.responseContainer}>
+                <strong>Response:</strong>
+                <pre style={styles.responsePre}>{response}</pre>
+            </div>
+        </div>
+    );
+};
+
+const styles: { [key: string]: React.CSSProperties } = {
+    container: {
+        fontFamily: 'Arial, sans-serif',
+        maxWidth: '700px',
+        margin: '40px auto',
+        padding: '20px',
+        border: '1px solid #ddd',
+        borderRadius: '8px',
+        boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+        backgroundColor: '#fff',
+    },
+    heading: {
+        textAlign: 'center',
+        color: '#333',
+        marginBottom: '20px',
+    },
+    textarea: {
+        width: 'calc(100% - 22px)', // Account for padding/border
+        padding: '10px',
+        marginBottom: '15px',
+        border: '1px solid #ccc',
+        borderRadius: '4px',
+        fontSize: '16px',
+        resize: 'vertical',
+    },
+    button: {
+        width: '100%',
+        padding: '12px 20px',
+        backgroundColor: '#007bff',
+        color: 'white',
+        border: 'none',
+        borderRadius: '4px',
+        fontSize: '16px',
+        cursor: 'pointer',
+        transition: 'background-color 0.2s ease',
+    },
+    buttonHover: { // For future :hover pseudo-class handling if needed
+        backgroundColor: '#0056b3',
+    },
+    responseContainer: {
+        marginTop: '25px',
+        padding: '15px',
+        backgroundColor: '#f9f9f9',
+        border: '1px solid #eee',
+        borderRadius: '4px',
+    },
+    responsePre: {
+        whiteSpace: 'pre-wrap', // Preserve whitespace and wrap lines
+        wordBreak: 'break-word',
+        fontFamily: 'monospace',
+        fontSize: '14px',
+        color: '#333',
+    },
+    errorText: {
+        color: 'red',
+        marginTop: '10px',
+        textAlign: 'center',
+    }
+};
 
 function App() {
-  const [prompt, setPrompt] = useState<string>('');
-  const [response, setResponse] = useState<string>('');
-  const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [error, setError] = useState<string | null>(null);
-
-  // Replace with the actual URL of your deployed Cloudflare Worker
-  const WORKER_URL = '/chat';
-
-  const responseEndRef = useRef<HTMLDivElement>(null);
-
-  // Scroll to the bottom of the response area whenever response updates
-  React.useEffect(() => {
-    if (responseEndRef.current) {
-      responseEndRef.current.scrollIntoView({ behavior: 'smooth' });
-    }
-  }, [response]);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!prompt.trim()) {
-      setError('Please enter a prompt.');
-      return;
-    }
-
-    setResponse(''); // Clear previous response
-    setError(null);
-    setIsLoading(true);
-
-    try {
-      const fetchResponse = await fetch(WORKER_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          // The structure expected by your Cloudflare Worker
-          contents: [{ parts: [{ text: prompt }] }],
-          // Optionally, add generation config or safety settings here
-          // generationConfig: {
-          //   temperature: 0.7,
-          //   maxOutputTokens: 200,
-          // },
-        }),
-      });
-
-      if (!fetchResponse.ok) {
-        const errorBody = await fetchResponse.text();
-        throw new Error(`Worker Error: ${fetchResponse.status} - ${errorBody}`);
-      }
-
-      // Get a readable stream from the response body
-      const reader = fetchResponse.body?.getReader();
-      const decoder = new TextDecoder();
-      let accumulatedResponse = '';
-
-      if (!reader) {
-        throw new Error('Could not get reader from response body.');
-      }
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) {
-          break; // Stream finished
-        }
-        // Decode the chunk and append to the state
-        const chunk = decoder.decode(value, { stream: true });
-        accumulatedResponse += chunk;
-        setResponse(accumulatedResponse); // Update state with each new chunk
-      }
-
-    } catch (err: any) {
-      console.error('Error fetching stream:', err);
-      setError(err.message || 'An unknown error occurred.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   return (
-    <div style={styles.container}>
-      <h1 style={styles.title}>Gemini Streaming Chat</h1>
-      <p style={styles.subtitle}>Powered by Cloudflare Worker & Google Gemini API</p>
-
-      <form onSubmit={handleSubmit} style={styles.form}>
-        <textarea
-          style={styles.textarea}
-          value={prompt}
-          onChange={(e) => setPrompt(e.target.value)}
-          placeholder="Enter your prompt here..."
-          rows={4}
-          disabled={isLoading}
-        />
-        <button type="submit" style={styles.button} disabled={isLoading}>
-          {isLoading ? 'Generating...' : 'Generate Stream'}
-        </button>
-      </form>
-
-      {error && <div style={styles.error}>{error}</div>}
-
-      {response && (
-        <div style={styles.responseContainer}>
-          <h2 style={styles.responseTitle}>Response:</h2>
-          <div style={styles.responseContent}>
-            {/* Display the response. Using dangerouslySetInnerHTML might be needed
-                if the API returns formatted HTML/Markdown, but for plain text,
-                just showing it directly is fine. */}
-            <p>{response}</p>
-            <div ref={responseEndRef} /> {/* For auto-scrolling */}
-          </div>
-        </div>
-      )}
+    <div className="App">
+      <GeminiStreamChat />
     </div>
   );
 }
-
-// Basic inline styles for demonstration
-const styles: { [key: string]: React.CSSProperties } = {
-  container: {
-    fontFamily: 'Arial, sans-serif',
-    maxWidth: '800px',
-    margin: '40px auto',
-    padding: '20px',
-    border: '1px solid #ccc',
-    borderRadius: '8px',
-    boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
-    backgroundColor: '#f9f9f9',
-  },
-  title: {
-    textAlign: 'center',
-    color: '#333',
-    marginBottom: '10px',
-  },
-  subtitle: {
-    textAlign: 'center',
-    color: '#666',
-    marginBottom: '30px',
-    fontSize: '0.9em',
-  },
-  form: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '15px',
-    marginBottom: '30px',
-  },
-  textarea: {
-    width: '100%',
-    padding: '12px',
-    border: '1px solid #ddd',
-    borderRadius: '4px',
-    fontSize: '16px',
-    resize: 'vertical',
-    minHeight: '80px',
-  },
-  button: {
-    padding: '12px 20px',
-    backgroundColor: '#007bff',
-    color: 'white',
-    border: 'none',
-    borderRadius: '4px',
-    fontSize: '16px',
-    cursor: 'pointer',
-    transition: 'background-color 0.3s ease',
-  },
-  buttonHover: {
-    backgroundColor: '#0056b3',
-  },
-  buttonDisabled: {
-    backgroundColor: '#a0c7ed',
-    cursor: 'not-allowed',
-  },
-  error: {
-    color: 'red',
-    backgroundColor: '#ffe0e0',
-    padding: '10px',
-    borderRadius: '4px',
-    marginBottom: '20px',
-    textAlign: 'center',
-  },
-  responseContainer: {
-    backgroundColor: '#e9ecef',
-    padding: '20px',
-    borderRadius: '4px',
-    border: '1px solid #dee2e6',
-  },
-  responseTitle: {
-    color: '#333',
-    marginTop: '0',
-    marginBottom: '15px',
-    borderBottom: '1px solid #ccc',
-    paddingBottom: '10px',
-  },
-  responseContent: {
-    whiteSpace: 'pre-wrap', // Preserves whitespace and line breaks
-    maxHeight: '400px', // Limit height for long responses
-    overflowY: 'auto', // Enable scrolling if content exceeds maxHeight
-    paddingRight: '10px', // Prevent scrollbar from overlapping text
-  },
-};
 
 export default App;
