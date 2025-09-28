@@ -1,4 +1,4 @@
-import { CSSProperties } from 'react';
+import type { CSSProperties } from 'react';
 
 export const chatStyles: { [key: string]: CSSProperties } = {
   container: {
@@ -27,20 +27,40 @@ export const chatStyles: { [key: string]: CSSProperties } = {
     flexDirection: 'column',
     overflow: 'hidden',
   },
-  responseContainer: {
+  messagesContainer: {
     flex: 1,
     padding: '20px',
     overflowY: 'auto',
-    backgroundColor: '#f9f9f9',
+    backgroundColor: '#f5f5f5',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '12px',
   },
-  responsePre: {
-    whiteSpace: 'pre-wrap',
+  messageBubble: {
+    maxWidth: '70%',
+    padding: '12px 16px',
+    borderRadius: '18px',
     wordBreak: 'break-word',
-    fontFamily: 'monospace',
     fontSize: '14px',
-    color: '#333',
+    lineHeight: '1.4',
     margin: 0,
-    lineHeight: '1.5',
+  },
+  userMessage: {
+    backgroundColor: '#007bff',
+    color: 'white',
+    alignSelf: 'flex-end',
+    borderBottomRightRadius: '4px',
+  },
+  aiMessage: {
+    backgroundColor: 'white',
+    color: '#333',
+    alignSelf: 'flex-start',
+    borderBottomLeftRadius: '4px',
+    border: '1px solid #e0e0e0',
+  },
+  messageText: {
+    whiteSpace: 'pre-wrap',
+    margin: 0,
   },
   inputArea: {
     padding: '20px',
@@ -101,5 +121,22 @@ export const chatStyles: { [key: string]: CSSProperties } = {
     padding: '10px',
     backgroundColor: '#ffe0e0',
     borderRadius: '4px',
+  },
+  welcomeMessage: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: '100%',
+    color: '#666',
+    fontSize: '16px',
+    textAlign: 'center',
+  },
+  typingIndicator: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '4px',
+    color: '#666',
+    fontSize: '14px',
+    fontStyle: 'italic',
   }
 };

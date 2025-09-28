@@ -1,30 +1,46 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useGeminiStream } from '../hooks/useGeminiStream';
+import type { ChatMessage } from '../hooks/useGeminiStream';
 import { chatStyles } from '../styles/chatStyles';
 
 const WORKER_URL = '/chat'; // Update this with your worker URL
 
 const GeminiStreamChat: React.FC = () => {
   const [prompt, setPrompt] = useState<string>('');
-  const responseEndRef = useRef<HTMLDivElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
   
-  const { response, isLoading, error, sendPrompt, clearResponse } = useGeminiStream(WORKER_URL);
+  const { messages, isLoading, error, sendPrompt, clearMessages } = useGeminiStream(WORKER_URL);
 
-  // Scroll to the bottom of the response area whenever response updates
+  // Scroll to the bottom of the messages whenever messages update
   useEffect(() => {
-    if (responseEndRef.current) {
-      responseEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [response]);
+  }, [messages]);
 
   const handleSendPrompt = async () => {
-    await sendPrompt(prompt);
+    if (prompt.trim()) {
+      await sendPrompt(prompt);
+      setPrompt('');
+    }
   };
 
-  const handleClearResponse = () => {
-    clearResponse();
+  const handleClearMessages = () => {
+    clearMessages();
     setPrompt('');
   };
+
+  const renderMessage = (message: ChatMessage) => (
+    <div
+      key={message.id}
+      style={{
+        ...chatStyles.messageBubble,
+        ...(message.isUser ? chatStyles.userMessage : chatStyles.aiMessage),
+      }}
+    >
+      <div style={chatStyles.messageText}>{message.content}</div>
+    </div>
+  );
 
   return (
     <div style={chatStyles.container}>
@@ -33,25 +49,24 @@ const GeminiStreamChat: React.FC = () => {
       </div>
       
       <div style={chatStyles.chatArea}>
-        <div style={chatStyles.responseContainer}>
+        <div style={chatStyles.messagesContainer}>
           {error && <p style={chatStyles.errorText}>Error: {error}</p>}
           
-          {response && (
-            <>
-              <pre style={chatStyles.responsePre}>{response}</pre>
-              <div ref={responseEndRef} />
-            </>
-          )}
-          
-          {!response && !error && (
-            <div style={{ 
-              padding: '20px',
-              color: '#666',
-              fontSize: '16px'
-            }}>
+          {messages.length === 0 && !error && (
+            <div style={chatStyles.welcomeMessage}>
               Enter a prompt below to start chatting with Gemini
             </div>
           )}
+          
+          {messages.map(renderMessage)}
+          
+          {isLoading && (
+            <div style={chatStyles.typingIndicator}>
+              Gemini is typing...
+            </div>
+          )}
+          
+          <div ref={messagesEndRef} />
         </div>
         
         <div style={chatStyles.inputArea}>
@@ -81,7 +96,7 @@ const GeminiStreamChat: React.FC = () => {
               
               <button
                 style={chatStyles.clearButton}
-                onClick={handleClearResponse}
+                onClick={handleClearMessages}
                 disabled={isLoading}
               >
                 Clear

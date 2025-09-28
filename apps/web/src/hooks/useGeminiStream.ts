@@ -1,15 +1,22 @@
 import { useState, useCallback } from 'react';
 
+export interface ChatMessage {
+  id: string;
+  content: string;
+  isUser: boolean;
+  timestamp: Date;
+}
+
 interface UseGeminiStreamReturn {
-  response: string;
+  messages: ChatMessage[];
   isLoading: boolean;
   error: string | null;
   sendPrompt: (prompt: string) => Promise<void>;
-  clearResponse: () => void;
+  clearMessages: () => void;
 }
 
 export const useGeminiStream = (workerUrl: string): UseGeminiStreamReturn => {
-  const [response, setResponse] = useState<string>('');
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -19,9 +26,28 @@ export const useGeminiStream = (workerUrl: string): UseGeminiStreamReturn => {
       return;
     }
 
-    setResponse('');
+    // Add user message
+    const userMessage: ChatMessage = {
+      id: Date.now().toString(),
+      content: prompt,
+      isUser: true,
+      timestamp: new Date(),
+    };
+
+    setMessages(prev => [...prev, userMessage]);
     setError(null);
     setIsLoading(true);
+
+    // Add AI message placeholder
+    const aiMessageId = (Date.now() + 1).toString();
+    const aiMessage: ChatMessage = {
+      id: aiMessageId,
+      content: '',
+      isUser: false,
+      timestamp: new Date(),
+    };
+
+    setMessages(prev => [...prev, aiMessage]);
 
     try {
       const fetchResponse = await fetch(workerUrl, {
@@ -71,7 +97,13 @@ export const useGeminiStream = (workerUrl: string): UseGeminiStreamReturn => {
               const parsed = JSON.parse(data);
               const text = parsed.candidates?.[0]?.content?.parts?.[0]?.text || '';
               if (text) {
-                setResponse(prev => prev + text);
+                setMessages(prev => 
+                  prev.map(msg => 
+                    msg.id === aiMessageId 
+                      ? { ...msg, content: msg.content + text }
+                      : msg
+                  )
+                );
               }
             } catch (e) {
               // Skip malformed JSON
@@ -89,16 +121,16 @@ export const useGeminiStream = (workerUrl: string): UseGeminiStreamReturn => {
     }
   }, [workerUrl]);
 
-  const clearResponse = useCallback(() => {
-    setResponse('');
+  const clearMessages = useCallback(() => {
+    setMessages([]);
     setError(null);
   }, []);
 
   return {
-    response,
+    messages,
     isLoading,
     error,
     sendPrompt,
-    clearResponse,
+    clearMessages,
   };
 };
