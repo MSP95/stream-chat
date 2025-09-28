@@ -1,0 +1,5 @@
+{
+    "name": "stream-chat",
+    "private": true,
+    "workspaces": ["apps/*"]
+}

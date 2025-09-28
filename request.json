@@ -1,0 +1,13 @@
+{
+  "contents": [
+    {
+      "role": "user",
+      "parts": [
+        { "text": "Generate a tiny image of a cat in sunglasses and describe it in one sentence." }
+      ]
+    }
+  ],
+  "generationConfig": {
+    "responseModalities": ["IMAGE", "TEXT"]
+  }
+}
